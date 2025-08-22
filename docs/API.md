@@ -81,15 +81,15 @@ Creates a new user account and triggers welcome email processing.
 **Success Response (201):**
 ```json
 {
-  "data": {
+  "token": "v2.local.xxx...",
+  "user": {
     "id": 1,
     "email": "john.doe@example.com",
     "first_name": "John",
     "last_name": "Doe",
     "welcome_email_sent": false,
     "created_at": "2024-01-15T10:30:00Z"
-  },
-  "message": "User registered successfully"
+  }
 }
 ```
 
@@ -114,17 +114,14 @@ Authenticates user and returns PASETO token. Queues welcome email for first-time
 **Success Response (200):**
 ```json
 {
-  "data": {
-    "token": "v2.local.xxx...",
-    "user": {
-      "id": 1,
-      "email": "john.doe@example.com",
-      "first_name": "John",
-      "last_name": "Doe",
-      "welcome_email_sent": true
-    }
-  },
-  "message": "Login successful"
+  "token": "v2.local.xxx...",
+  "user": {
+    "id": 1,
+    "email": "john.doe@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "welcome_email_sent": true
+  }
 }
 ```
 
@@ -171,15 +168,12 @@ Creates a new account for the authenticated user with specified currency.
 **Success Response (201):**
 ```json
 {
-  "data": {
-    "id": 1,
-    "user_id": 1,
-    "currency": "USD",
-    "balance": "0.00",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T10:30:00Z"
-  },
-  "message": "Account created successfully"
+  "id": 1,
+  "user_id": 1,
+  "currency": "USD",
+  "balance": "0.00",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:30:00Z"
 }
 ```
 
@@ -199,7 +193,7 @@ Returns all accounts belonging to the authenticated user.
 **Success Response (200):**
 ```json
 {
-  "data": [
+  "accounts": [
     {
       "id": 1,
       "user_id": 1,
@@ -216,7 +210,8 @@ Returns all accounts belonging to the authenticated user.
       "created_at": "2024-01-15T11:00:00Z",
       "updated_at": "2024-01-15T13:45:00Z"
     }
-  ]
+  ],
+  "count": 2
 }
 ```
 
@@ -234,14 +229,12 @@ Returns details for a specific account. Users can only access their own accounts
 **Success Response (200):**
 ```json
 {
-  "data": {
-    "id": 1,
-    "user_id": 1,
-    "currency": "USD",
-    "balance": "1500.50",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T14:20:00Z"
-  }
+  "id": 1,
+  "user_id": 1,
+  "currency": "USD",
+  "balance": "1500.50",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T14:20:00Z"
 }
 ```
 
@@ -268,15 +261,12 @@ Updates account details (administrative operation, balance cannot be modified di
 **Success Response (200):**
 ```json
 {
-  "data": {
-    "id": 1,
-    "user_id": 1,
-    "currency": "USD",
-    "balance": "1500.50",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T15:30:00Z"
-  },
-  "message": "Account updated successfully"
+  "id": 1,
+  "user_id": 1,
+  "currency": "USD",
+  "balance": "1500.50",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T15:30:00Z"
 }
 ```
 
@@ -288,7 +278,12 @@ Deletes an account. Only accounts with zero balance and no transaction history c
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Success Response (204):** No content
+**Success Response (200):**
+```json
+{
+  "message": "Account deleted successfully"
+}
+```
 
 **Error Responses:**
 - `422`: Account has non-zero balance or transaction history
@@ -326,16 +321,13 @@ Transfers money between accounts with atomic database transaction.
 **Success Response (201):**
 ```json
 {
-  "data": {
-    "id": 1,
-    "from_account_id": 1,
-    "to_account_id": 2,
-    "amount": "100.50",
-    "description": "Payment for services",
-    "status": "completed",
-    "created_at": "2024-01-15T15:30:00Z"
-  },
-  "message": "Transfer completed successfully"
+  "id": 1,
+  "from_account_id": 1,
+  "to_account_id": 2,
+  "amount": "100.50",
+  "description": "Payment for services",
+  "status": "completed",
+  "created_at": "2024-01-15T15:30:00Z"
 }
 ```
 
@@ -360,33 +352,26 @@ Returns transfer history for accounts belonging to the authenticated user.
 
 **Success Response (200):**
 ```json
-{
-  "data": [
-    {
-      "id": 1,
-      "from_account_id": 1,
-      "to_account_id": 2,
-      "amount": "100.50",
-      "description": "Payment for services",
-      "status": "completed",
-      "created_at": "2024-01-15T15:30:00Z"
-    },
-    {
-      "id": 2,
-      "from_account_id": 3,
-      "to_account_id": 1,
-      "amount": "250.00",
-      "description": "Refund",
-      "status": "completed",
-      "created_at": "2024-01-15T14:20:00Z"
-    }
-  ],
-  "pagination": {
-    "limit": 50,
-    "offset": 0,
-    "total": 2
+[
+  {
+    "id": 1,
+    "from_account_id": 1,
+    "to_account_id": 2,
+    "amount": "100.50",
+    "description": "Payment for services",
+    "status": "completed",
+    "created_at": "2024-01-15T15:30:00Z"
+  },
+  {
+    "id": 2,
+    "from_account_id": 3,
+    "to_account_id": 1,
+    "amount": "250.00",
+    "description": "Refund",
+    "status": "completed",
+    "created_at": "2024-01-15T14:20:00Z"
   }
-}
+]
 ```
 
 #### Get Transfer Details
@@ -400,15 +385,13 @@ Returns details for a specific transfer.
 **Success Response (200):**
 ```json
 {
-  "data": {
-    "id": 1,
-    "from_account_id": 1,
-    "to_account_id": 2,
-    "amount": "100.50",
-    "description": "Payment for services",
-    "status": "completed",
-    "created_at": "2024-01-15T15:30:00Z"
-  }
+  "id": 1,
+  "from_account_id": 1,
+  "to_account_id": 2,
+  "amount": "100.50",
+  "description": "Payment for services",
+  "status": "completed",
+  "created_at": "2024-01-15T15:30:00Z"
 }
 ```
 

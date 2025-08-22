@@ -683,6 +683,8 @@ docker-compose exec redis redis-cli -a redispass123 FLUSHDB
 ```bash
 # Set debug mode
 GIN_MODE=debug
+LOG_LEVEL=debug
+LOG_FORMAT=console
 
 # Restart application
 docker-compose restart bankapi
@@ -693,9 +695,42 @@ docker-compose restart bankapi
 # Enable structured logging
 LOG_LEVEL=debug
 LOG_FORMAT=json
+LOG_OUTPUT=both
 
 # Restart application
 docker-compose restart bankapi
+```
+
+### Logging Configuration
+
+The application supports comprehensive logging with the following options:
+
+**Log Levels:** `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `panic`
+**Log Formats:** `json` (structured), `console` (human-readable)
+**Log Outputs:** `console`, `file`, `both`
+
+**Advanced Logging Features:**
+- **Audit Logging**: Track user actions and system events
+- **Performance Logging**: Monitor request/response times and database queries
+- **Context Logging**: Include request IDs and user context
+- **File Rotation**: Automatic log file rotation with compression
+- **Sampling**: Reduce log volume in high-traffic scenarios
+
+**Environment Variables:**
+```bash
+LOG_LEVEL=info                    # Minimum log level
+LOG_FORMAT=json                   # Log format
+LOG_OUTPUT=both                   # Output destination
+LOG_DIRECTORY=logs                # Log file directory
+LOG_MAX_AGE=30                    # Days to keep log files
+LOG_MAX_BACKUPS=10                # Number of backup files
+LOG_MAX_SIZE=100                  # Max file size in MB
+LOG_COMPRESS=true                 # Compress rotated files
+LOG_LOCAL_TIME=true               # Use local timezone
+LOG_CALLER_INFO=false             # Include caller information
+LOG_SAMPLING_ENABLED=false        # Enable log sampling
+LOG_SAMPLING_INITIAL=100          # Initial sampling rate
+LOG_SAMPLING_THEREAFTER=100       # Subsequent sampling rate
 ```
 
 ### Log Analysis

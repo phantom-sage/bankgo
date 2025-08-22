@@ -12,13 +12,14 @@ A production-ready banking REST API service built with Go, Gin, PostgreSQL, and 
 - **Production-ready security**: Rate limiting, CORS, request logging, and security headers
 - **Docker deployment**: Complete containerization with development and production configurations
 - **Health monitoring**: Built-in health checks and service monitoring endpoints
+- **Advanced logging**: Multi-level structured logging with audit trails, performance monitoring, and file rotation
 - **Comprehensive testing**: Unit, integration, and performance tests
 
 ## 📋 Prerequisites
 
 ### Development
 - **Docker 20.10+** and **Docker Compose 2.0+** (recommended)
-- **Go 1.24.3+**: Latest stable version for optimal performance and security
+- **Go 1.24.3**: Latest stable version for optimal performance and security
 - **PostgreSQL 15+**: Primary database for transactional data
 - **Redis 7+**: Message broker for background email jobs
 
@@ -78,11 +79,18 @@ DB_NAME=bankapi
 DB_USER=bankuser
 DB_PASSWORD=your_secure_password
 DB_SSL_MODE=require
+DB_MAX_OPEN_CONNS=25
+DB_MAX_IDLE_CONNS=5
+DB_CONN_MAX_LIFETIME=5m
+DB_CONN_MAX_IDLE_TIME=5m
 
 # Redis Configuration  
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=your_redis_password
+REDIS_DB=0
+REDIS_POOL_SIZE=10
+REDIS_MIN_IDLE_CONNS=5
 
 # PASETO Authentication (must be at least 32 characters)
 PASETO_SECRET_KEY=your_32_character_secret_key_here
@@ -93,11 +101,28 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your_email@gmail.com
 SMTP_PASSWORD=your_app_password
+FROM_EMAIL=noreply@bankapi.com
+FROM_NAME=Bank API
 
 # Server Configuration
 PORT=8080
 HOST=0.0.0.0
 GIN_MODE=release
+READ_TIMEOUT=30s
+WRITE_TIMEOUT=30s
+IDLE_TIMEOUT=120s
+
+# Logging Configuration
+LOG_LEVEL=info
+LOG_FORMAT=json
+LOG_OUTPUT=both
+LOG_DIRECTORY=logs
+LOG_MAX_AGE=30
+LOG_MAX_BACKUPS=10
+LOG_MAX_SIZE=100
+LOG_COMPRESS=true
+LOG_LOCAL_TIME=true
+LOG_CALLER_INFO=false
 ```
 
 ### 3. Database Setup
@@ -198,16 +223,24 @@ make build         # Build Docker images
 make up            # Start development environment
 make down          # Stop all services
 make logs          # Show service logs
+make restart       # Restart all services
 make clean         # Remove all containers and volumes
+make clean-volumes # Remove volumes only
 make test          # Run tests in containers
+make test-integration # Run integration tests
 make health        # Check service health
 make db-shell      # Connect to PostgreSQL
 make redis-shell   # Connect to Redis
+make db-migrate    # Run database migrations
 
 # Production commands
 make prod-up       # Start production environment
 make prod-down     # Stop production services
 make prod-logs     # Show production logs
+
+# Development helpers
+make dev-setup     # Set up development environment
+make dev-reset     # Reset development environment
 ```
 
 ## 📚 Documentation
@@ -273,6 +306,7 @@ bank-rest-api/
 │   │   ├── migrations/      # SQL migration files
 │   │   └── queries/         # SQLC generated code
 │   ├── handlers/            # HTTP request handlers
+│   ├── logging/             # Comprehensive logging system
 │   ├── middleware/          # HTTP middleware (auth, CORS, logging)
 │   ├── models/              # Data models and validation
 │   ├── queue/               # Background job processing
@@ -355,6 +389,7 @@ For complete API documentation with all endpoints, request/response examples, an
 - **SQL Injection Prevention**: SQLC-generated parameterized queries
 - **Environment Security**: Sensitive data in environment variables only
 - **HTTPS Support**: TLS termination at load balancer level
+- **Comprehensive Logging**: Structured logging with audit trails and performance monitoring
 
 ## 🏦 Business Rules
 
@@ -521,9 +556,22 @@ For comprehensive troubleshooting including diagnostics, solutions, and debuggin
 |----------|---------|-------------|
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
+| `DB_MAX_OPEN_CONNS` | `25` | Maximum open database connections |
+| `DB_MAX_IDLE_CONNS` | `5` | Maximum idle database connections |
+| `DB_CONN_MAX_LIFETIME` | `5m` | Maximum connection lifetime |
 | `REDIS_HOST` | `localhost` | Redis host |
+| `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_DB` | `0` | Redis database number |
+| `REDIS_POOL_SIZE` | `10` | Redis connection pool size |
 | `PORT` | `8080` | Server port |
+| `HOST` | `0.0.0.0` | Server host |
 | `GIN_MODE` | `debug` | Application mode |
+| `READ_TIMEOUT` | `30s` | HTTP read timeout |
+| `WRITE_TIMEOUT` | `30s` | HTTP write timeout |
+| `IDLE_TIMEOUT` | `120s` | HTTP idle timeout |
+| `LOG_LEVEL` | `info` | Logging level |
+| `LOG_FORMAT` | `json` | Log format (json/console) |
+| `LOG_OUTPUT` | `both` | Log output (console/file/both) |
 
 ### Security Best Practices
 
@@ -561,6 +609,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - **Documentation**: Check the `docs/` directory for comprehensive guides
+- **PDF Documentation**: Generate PDF version with `./scripts/generate-docs-pdf.sh`
 - **Issues**: Create a GitHub issue with detailed information
 - **Troubleshooting**: See [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - **API Reference**: See [API Documentation](docs/API.md)
@@ -568,12 +617,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🏗️ Built With
 
 - **[Go 1.24.3](https://golang.org/)** - Programming language
-- **[Gin](https://gin-gonic.com/)** - HTTP web framework
-- **[PostgreSQL](https://www.postgresql.org/)** - Primary database
-- **[Redis](https://redis.io/)** - Caching and job queue
-- **[SQLC](https://sqlc.dev/)** - Type-safe SQL code generation
-- **[Asyncq](https://github.com/hibiken/asynq)** - Background job processing
-- **[PASETO](https://paseto.io/)** - Secure authentication tokens
+- **[Gin](https://gin-gonic.com/)** - HTTP web framework  
+- **[PostgreSQL 15+](https://www.postgresql.org/)** - Primary database with ACID compliance
+- **[Redis 7+](https://redis.io/)** - Caching and message broker for background jobs
+- **[SQLC](https://sqlc.dev/)** - Type-safe SQL code generation from SQL queries
+- **[Asynq](https://github.com/hibiken/asynq)** - Background job processing with Redis
+- **[PASETO v2](https://paseto.io/)** - Secure, stateless authentication tokens
+- **[pgx/v5](https://github.com/jackc/pgx)** - PostgreSQL driver and toolkit
+- **[Zerolog](https://github.com/rs/zerolog)** - Structured logging with performance focus
 - **[Docker](https://www.docker.com/)** - Containerization platform
 
 ---

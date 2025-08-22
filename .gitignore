@@ -74,5 +74,8 @@ docker-data/
 coverage.out
 coverage.html
 
+# Generated documentation
+docs/pdf/
+
 # Air live reload tool
 tmp/

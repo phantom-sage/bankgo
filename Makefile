@@ -13,6 +13,8 @@ help:
 	@echo "  prod-down   - Stop production services"
 	@echo "  docker-build - Build Docker image with tag"
 	@echo "  docker-push  - Push Docker image to registry"
+	@echo "  docs-pdf     - Generate PDF documentation"
+	@echo "  docs-pdf-open - Generate and open PDF documentation"
 
 # Development commands
 build:
@@ -91,3 +93,12 @@ dev-setup:
 
 dev-reset: down clean dev-setup up
 	@echo "Development environment reset complete"
+
+# Documentation
+docs-pdf:
+	@echo "Generating PDF documentation..."
+	@./scripts/generate-docs-pdf.sh
+
+docs-pdf-open:
+	@echo "Generating and opening PDF documentation..."
+	@./scripts/generate-docs-pdf.sh --open

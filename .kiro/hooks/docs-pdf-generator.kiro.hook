@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Documentation PDF Generator",
+  "description": "Automatically creates updated PDF format for documentation when any documentation files are modified",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "docs/*.md",
+      "README.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Documentation files have been updated. Please run the documentation PDF generation script to create an updated PDF version of all documentation. Execute the following command: `./scripts/generate-docs-pdf.sh` to combine all markdown files (README.md and docs/*.md) into a single, well-formatted PDF document with proper table of contents and styling."
+  }
+}

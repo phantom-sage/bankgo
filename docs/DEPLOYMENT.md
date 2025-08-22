@@ -107,24 +107,51 @@ nano .env
 
 **Critical production settings:**
 ```bash
-# Database (use strong passwords)
+# Database Configuration (use strong passwords)
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=bankapi
+DB_USER=bankuser
 DB_PASSWORD=your_very_secure_database_password
 DB_SSL_MODE=require
+DB_MAX_OPEN_CONNS=25
+DB_MAX_IDLE_CONNS=5
+DB_CONN_MAX_LIFETIME=5m
+DB_CONN_MAX_IDLE_TIME=5m
 
-# Redis (use strong password)
+# Redis Configuration (use strong password)
+REDIS_HOST=redis
+REDIS_PORT=6379
 REDIS_PASSWORD=your_very_secure_redis_password
+REDIS_DB=0
+REDIS_POOL_SIZE=10
+REDIS_MIN_IDLE_CONNS=5
 
-# PASETO (generate secure 32+ character key)
+# PASETO Authentication (generate secure 32+ character key)
 PASETO_SECRET_KEY=your_32_character_production_secret_key
+PASETO_EXPIRATION=24h
 
-# Email (use production SMTP)
+# Email Configuration (use production SMTP)
 SMTP_HOST=smtp.your-provider.com
+SMTP_PORT=587
 SMTP_USERNAME=your_production_email
 SMTP_PASSWORD=your_production_email_password
+FROM_EMAIL=noreply@bankapi.com
+FROM_NAME=Bank API
 
-# Server
-GIN_MODE=release
+# Server Configuration
 PORT=8080
+HOST=0.0.0.0
+GIN_MODE=release
+READ_TIMEOUT=30s
+WRITE_TIMEOUT=30s
+IDLE_TIMEOUT=120s
+
+# Logging Configuration
+LOG_LEVEL=info
+LOG_FORMAT=json
+LOG_OUTPUT=both
+LOG_DIRECTORY=logs
 ```
 
 3. **Start production services:**
