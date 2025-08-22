@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/phantom-sage/bankgo/internal/logging"
 	"github.com/phantom-sage/bankgo/internal/models"
 )
 
@@ -25,6 +26,8 @@ type AppError struct {
 	Message string
 	Details map[string]string
 	Err     error
+	// Error logging context
+	ErrorContext logging.ErrorContext
 }
 
 // Error implements the error interface
@@ -41,6 +44,10 @@ func NewAppError(code int, errorType, message string) *AppError {
 		Code:    code,
 		Type:    errorType,
 		Message: message,
+		ErrorContext: logging.ErrorContext{
+			Category: logging.ClassifyError(errors.New(message)),
+			Severity: logging.DetermineSeverity(errors.New(message), logging.ClassifyError(errors.New(message))),
+		},
 	}
 }
 
@@ -51,6 +58,10 @@ func NewAppErrorWithDetails(code int, errorType, message string, details map[str
 		Type:    errorType,
 		Message: message,
 		Details: details,
+		ErrorContext: logging.ErrorContext{
+			Category: logging.ClassifyError(errors.New(message)),
+			Severity: logging.DetermineSeverity(errors.New(message), logging.ClassifyError(errors.New(message))),
+		},
 	}
 }
 
@@ -60,67 +71,148 @@ func NewAppErrorFromError(err error) *AppError {
 		return appErr
 	}
 
+	// Create error context
+	category := logging.ClassifyError(err)
+	severity := logging.DetermineSeverity(err, category)
+	
+	errorCtx := logging.ErrorContext{
+		Category: category,
+		Severity: severity,
+	}
+
 	// Map known model errors to appropriate HTTP status codes
 	switch {
 	case errors.Is(err, models.ErrInvalidEmail):
-		return NewAppError(http.StatusBadRequest, "validation_error", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "validation_error", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrPasswordTooShort):
-		return NewAppError(http.StatusBadRequest, "validation_error", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "validation_error", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrEmptyFirstName):
-		return NewAppError(http.StatusBadRequest, "validation_error", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "validation_error", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrEmptyLastName):
-		return NewAppError(http.StatusBadRequest, "validation_error", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "validation_error", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrInvalidCurrency):
-		return NewAppError(http.StatusBadRequest, "invalid_currency", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_currency", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrNegativeBalance):
-		return NewAppError(http.StatusBadRequest, "invalid_balance", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_balance", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrInvalidUserID):
-		return NewAppError(http.StatusBadRequest, "invalid_user_id", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_user_id", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrInvalidTransferAmount):
-		return NewAppError(http.StatusBadRequest, "invalid_amount", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_amount", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrInvalidFromAccount):
-		return NewAppError(http.StatusBadRequest, "invalid_from_account", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_from_account", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrInvalidToAccount):
-		return NewAppError(http.StatusBadRequest, "invalid_to_account", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_to_account", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrSameAccount):
-		return NewAppError(http.StatusBadRequest, "same_account", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "same_account", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	case errors.Is(err, models.ErrInvalidTransferStatus):
-		return NewAppError(http.StatusBadRequest, "invalid_status", err.Error())
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "invalid_status", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case errors.Is(err, models.ErrCurrencyMismatch):
-		return NewAppError(http.StatusUnprocessableEntity, "currency_mismatch", err.Error())
+		return &AppError{
+			Code: http.StatusUnprocessableEntity, Type: "currency_mismatch", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	case errors.Is(err, models.ErrInsufficientBalance):
-		return NewAppError(http.StatusUnprocessableEntity, "insufficient_balance", err.Error())
+		return &AppError{
+			Code: http.StatusUnprocessableEntity, Type: "insufficient_balance", Message: err.Error(), Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	}
 
 	// Check for common error patterns in error messages
 	errMsg := err.Error()
 	switch {
 	case strings.Contains(errMsg, "already exists"):
-		return NewAppError(http.StatusConflict, "resource_exists", errMsg)
+		return &AppError{
+			Code: http.StatusConflict, Type: "resource_exists", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	case strings.Contains(errMsg, "not found"):
-		return NewAppError(http.StatusNotFound, "resource_not_found", errMsg)
+		return &AppError{
+			Code: http.StatusNotFound, Type: "resource_not_found", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	case strings.Contains(errMsg, "access denied"):
-		return NewAppError(http.StatusForbidden, "access_denied", errMsg)
+		return &AppError{
+			Code: http.StatusForbidden, Type: "access_denied", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.AuthenticationError),
+		}
 	case strings.Contains(errMsg, "unauthorized"):
-		return NewAppError(http.StatusUnauthorized, "unauthorized", errMsg)
+		return &AppError{
+			Code: http.StatusUnauthorized, Type: "unauthorized", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.AuthenticationError),
+		}
 	case strings.Contains(errMsg, "validation failed"):
-		return NewAppError(http.StatusBadRequest, "validation_error", errMsg)
+		return &AppError{
+			Code: http.StatusBadRequest, Type: "validation_error", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.ValidationError),
+		}
 	case strings.Contains(errMsg, "non-zero balance"):
-		return NewAppError(http.StatusUnprocessableEntity, "non_zero_balance", errMsg)
+		return &AppError{
+			Code: http.StatusUnprocessableEntity, Type: "non_zero_balance", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	case strings.Contains(errMsg, "transaction history"):
-		return NewAppError(http.StatusUnprocessableEntity, "has_transactions", errMsg)
+		return &AppError{
+			Code: http.StatusUnprocessableEntity, Type: "has_transactions", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.BusinessLogicError),
+		}
 	case strings.Contains(errMsg, "invalid token"):
-		return NewAppError(http.StatusUnauthorized, "invalid_token", errMsg)
+		return &AppError{
+			Code: http.StatusUnauthorized, Type: "invalid_token", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.AuthenticationError),
+		}
 	case strings.Contains(errMsg, "token expired"):
-		return NewAppError(http.StatusUnauthorized, "token_expired", errMsg)
+		return &AppError{
+			Code: http.StatusUnauthorized, Type: "token_expired", Message: errMsg, Err: err,
+			ErrorContext: errorCtx.WithCategory(logging.AuthenticationError),
+		}
 	}
 
 	// Default to internal server error for unknown errors
-	return NewAppError(http.StatusInternalServerError, "internal_error", "An internal error occurred")
+	return &AppError{
+		Code: http.StatusInternalServerError, Type: "internal_error", Message: "An internal error occurred", Err: err,
+		ErrorContext: errorCtx.WithCategory(logging.SystemError).WithSeverity(logging.HighSeverity),
+	}
 }
 
 // ErrorHandler middleware handles errors consistently across the application
-func ErrorHandler() gin.HandlerFunc {
+func ErrorHandler(errorLogger *logging.ErrorLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -133,6 +225,41 @@ func ErrorHandler() gin.HandlerFunc {
 				appErr = ae
 			} else {
 				appErr = NewAppErrorFromError(err.Err)
+			}
+
+			// Create error context from Gin context
+			errorCtx := NewErrorContextFromGinContext(c)
+			
+			// Add HTTP-specific context
+			errorCtx.Method = c.Request.Method
+			errorCtx.HTTPStatus = appErr.Code
+			errorCtx.Operation = c.FullPath()
+			errorCtx.Component = "http_handler"
+			
+			// Use existing error context if available
+			if appErr.ErrorContext.Category != "" {
+				errorCtx.Category = appErr.ErrorContext.Category
+			} else {
+				errorCtx.Category = logging.ClassifyError(appErr.Err)
+			}
+			
+			if appErr.ErrorContext.Severity != "" {
+				errorCtx.Severity = appErr.ErrorContext.Severity
+			} else {
+				errorCtx.Severity = logging.DetermineSeverity(appErr.Err, errorCtx.Category)
+			}
+			
+			// Add error details
+			if appErr.Details != nil {
+				errorCtx.Details = make(map[string]interface{})
+				for k, v := range appErr.Details {
+					errorCtx.Details[k] = v
+				}
+			}
+			
+			// Log the error with structured context
+			if errorLogger != nil {
+				errorLogger.LogError(appErr.Err, errorCtx)
 			}
 
 			// Don't override status if it's already set
@@ -206,6 +333,55 @@ func HandleError(c *gin.Context, err error) {
 		appErr = ae
 	} else {
 		appErr = NewAppErrorFromError(err)
+	}
+
+	c.JSON(appErr.Code, ErrorResponse{
+		Error:   appErr.Type,
+		Message: appErr.Message,
+		Code:    appErr.Code,
+		Details: appErr.Details,
+	})
+}
+
+// HandleErrorWithLogging is a helper function to handle errors with structured logging
+func HandleErrorWithLogging(c *gin.Context, err error, errorLogger *logging.ErrorLogger) {
+	if err == nil {
+		return
+	}
+
+	var appErr *AppError
+	if ae, ok := err.(*AppError); ok {
+		appErr = ae
+	} else {
+		appErr = NewAppErrorFromError(err)
+	}
+
+	// Create error context from Gin context
+	errorCtx := NewErrorContextFromGinContext(c)
+	errorCtx.Method = c.Request.Method
+	errorCtx.HTTPStatus = appErr.Code
+	errorCtx.Operation = c.FullPath()
+	errorCtx.Component = "http_handler"
+	
+	// Use existing error context if available
+	if appErr.ErrorContext.Category != "" {
+		errorCtx.Category = appErr.ErrorContext.Category
+	}
+	if appErr.ErrorContext.Severity != "" {
+		errorCtx.Severity = appErr.ErrorContext.Severity
+	}
+	
+	// Add error details
+	if appErr.Details != nil {
+		errorCtx.Details = make(map[string]interface{})
+		for k, v := range appErr.Details {
+			errorCtx.Details[k] = v
+		}
+	}
+	
+	// Log the error with structured context
+	if errorLogger != nil {
+		errorLogger.LogError(appErr.Err, errorCtx)
 	}
 
 	c.JSON(appErr.Code, ErrorResponse{
@@ -299,4 +475,99 @@ func NewUnauthorizedError(reason string) *AppError {
 // NewInternalError creates an internal server error (without exposing internal details)
 func NewInternalError() *AppError {
 	return NewAppError(http.StatusInternalServerError, "internal_error", "An internal error occurred")
+}
+
+// NewAppErrorWithContext creates a new application error with structured error context
+func NewAppErrorWithContext(code int, errorType, message string, errorCtx logging.ErrorContext) *AppError {
+	return &AppError{
+		Code:         code,
+		Type:         errorType,
+		Message:      message,
+		ErrorContext: errorCtx,
+	}
+}
+
+// NewValidationError creates a validation error with structured context
+func NewValidationError(message string, details map[string]string) *AppError {
+	return &AppError{
+		Code:    http.StatusBadRequest,
+		Type:    "validation_error",
+		Message: message,
+		Details: details,
+		ErrorContext: logging.ErrorContext{
+			Category: logging.ValidationError,
+			Severity: logging.LowSeverity,
+		},
+	}
+}
+
+// NewBusinessLogicError creates a business logic error with structured context
+func NewBusinessLogicError(message string, details map[string]string) *AppError {
+	return &AppError{
+		Code:    http.StatusUnprocessableEntity,
+		Type:    "business_logic_error",
+		Message: message,
+		Details: details,
+		ErrorContext: logging.ErrorContext{
+			Category: logging.BusinessLogicError,
+			Severity: logging.MediumSeverity,
+		},
+	}
+}
+
+// NewAuthenticationErrorWithContext creates an authentication error with structured context
+func NewAuthenticationErrorWithContext(message string) *AppError {
+	return &AppError{
+		Code:    http.StatusUnauthorized,
+		Type:    "authentication_error",
+		Message: message,
+		ErrorContext: logging.ErrorContext{
+			Category: logging.AuthenticationError,
+			Severity: logging.MediumSeverity,
+		},
+	}
+}
+
+// NewSystemErrorWithContext creates a system error with structured context
+func NewSystemErrorWithContext(message string, err error) *AppError {
+	return &AppError{
+		Code:    http.StatusInternalServerError,
+		Type:    "system_error",
+		Message: message,
+		Err:     err,
+		ErrorContext: logging.ErrorContext{
+			Category: logging.SystemError,
+			Severity: logging.HighSeverity,
+		},
+	}
+}
+
+// NewErrorContextFromGinContext creates an ErrorContext from a Gin context
+func NewErrorContextFromGinContext(c *gin.Context) logging.ErrorContext {
+	ctx := logging.ErrorContext{}
+
+	// Extract request ID if available
+	if requestID, exists := c.Get("request_id"); exists {
+		if id, ok := requestID.(string); ok {
+			ctx.RequestID = id
+		}
+	}
+
+	// Extract user ID if available
+	if userID, exists := c.Get("user_id"); exists {
+		if id, ok := userID.(int64); ok {
+			ctx.UserID = id
+		} else if id, ok := userID.(int); ok {
+			ctx.UserID = int64(id)
+		}
+	}
+
+	// Extract user email if available
+	if userEmail, exists := c.Get("user_email"); exists {
+		if email, ok := userEmail.(string); ok {
+			ctx.UserEmail = email
+		}
+	}
+
+	return ctx
 }

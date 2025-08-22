@@ -33,7 +33,7 @@ func SetupRouter(db *database.DB, queueManager *queue.QueueManager, cfg *config.
 	}
 
 	// Create health handlers
-	healthHandlers := handlers.NewHealthHandlers(db, queueManager, version)
+	healthHandlers := handlers.NewHealthHandlers(db, queueManager, loggerManager, version)
 
 	// Initialize services and handlers only if database and config are available
 	var authHandlers *handlers.AuthHandlers

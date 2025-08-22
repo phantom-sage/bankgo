@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/phantom-sage/bankgo/internal/models"
+	"github.com/phantom-sage/bankgo/internal/queue"
 	"github.com/phantom-sage/bankgo/pkg/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -50,11 +51,16 @@ func (m *MockUserService) MarkWelcomeEmailSent(ctx context.Context, userID int) 
 	return args.Error(0)
 }
 
+// QueueManagerInterface defines the interface used by auth handlers
+type QueueManagerInterface interface {
+	QueueWelcomeEmail(ctx context.Context, payload queue.WelcomeEmailPayload) error
+}
+
 type MockQueueManager struct {
 	mock.Mock
 }
 
-func (m *MockQueueManager) QueueWelcomeEmail(ctx context.Context, payload interface{}) error {
+func (m *MockQueueManager) QueueWelcomeEmail(ctx context.Context, payload queue.WelcomeEmailPayload) error {
 	args := m.Called(ctx, payload)
 	return args.Error(0)
 }

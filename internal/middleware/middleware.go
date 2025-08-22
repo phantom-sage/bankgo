@@ -24,7 +24,8 @@ func SetupMiddleware(r *gin.Engine, loggerManager *logging.LoggerManager) {
 	r.Use(RateLimit(DefaultRateLimiterConfig()))
 	
 	// Error handling middleware (should be after other middleware to catch their errors)
-	r.Use(ErrorHandler())
+	errorLogger := logging.NewErrorLogger(loggerManager.GetLogger())
+	r.Use(ErrorHandler(errorLogger))
 	
 	// Recovery middleware to handle panics (should be last)
 	r.Use(gin.Recovery())

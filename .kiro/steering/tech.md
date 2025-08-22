@@ -27,7 +27,7 @@
 ### Validation & Utilities
 - **go-playground/validator**: Request validation and binding
 - **shopspring/decimal**: Precise decimal arithmetic for financial calculations
-- **sirupsen/logrus**: Structured logging
+- **rs/zerolog**: High-performance structured logging with zero allocations
 
 ## Build System & Commands
 

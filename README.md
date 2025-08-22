@@ -12,7 +12,7 @@ A production-ready banking REST API service built with Go, Gin, PostgreSQL, and 
 - **Production-ready security**: Rate limiting, CORS, request logging, and security headers
 - **Docker deployment**: Complete containerization with development and production configurations
 - **Health monitoring**: Built-in health checks and service monitoring endpoints
-- **Advanced logging**: Multi-level structured logging with audit trails, performance monitoring, and file rotation
+- **Advanced logging**: High-performance structured logging with zerolog, daily file rotation, audit trails, and performance monitoring
 - **Comprehensive testing**: Unit, integration, and performance tests
 
 ## 📋 Prerequisites
@@ -112,17 +112,20 @@ READ_TIMEOUT=30s
 WRITE_TIMEOUT=30s
 IDLE_TIMEOUT=120s
 
-# Logging Configuration
-LOG_LEVEL=info
-LOG_FORMAT=json
-LOG_OUTPUT=both
-LOG_DIRECTORY=logs
-LOG_MAX_AGE=30
-LOG_MAX_BACKUPS=10
-LOG_MAX_SIZE=100
-LOG_COMPRESS=true
-LOG_LOCAL_TIME=true
-LOG_CALLER_INFO=false
+# Logging Configuration (Zerolog)
+LOG_LEVEL=info                    # debug, info, warn, error, fatal
+LOG_FORMAT=json                   # json, console
+LOG_OUTPUT=both                   # console, file, both
+LOG_DIRECTORY=logs               # Directory for log files
+LOG_MAX_AGE=30                   # Days to keep log files
+LOG_MAX_BACKUPS=10               # Number of backup files to keep
+LOG_MAX_SIZE=100                 # Maximum size in MB before rotation
+LOG_COMPRESS=true                # Compress rotated files
+LOG_LOCAL_TIME=true              # Use local time for file names
+LOG_CALLER_INFO=false            # Include caller information
+LOG_SAMPLING_ENABLED=false       # Enable log sampling for high volume
+LOG_SAMPLING_INITIAL=100         # Initial sampling rate
+LOG_SAMPLING_THEREAFTER=100      # Subsequent sampling rate
 ```
 
 ### 3. Database Setup
@@ -247,6 +250,7 @@ make dev-reset     # Reset development environment
 
 - **[API Documentation](docs/API.md)**: Complete API reference with examples
 - **[Deployment Guide](docs/DEPLOYMENT.md)**: Production deployment instructions
+- **[Logging Guide](docs/LOGGING.md)**: Comprehensive logging best practices and configuration
 - **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**: Common issues and solutions
 
 ## 🏗️ Architecture
@@ -389,7 +393,172 @@ For complete API documentation with all endpoints, request/response examples, an
 - **SQL Injection Prevention**: SQLC-generated parameterized queries
 - **Environment Security**: Sensitive data in environment variables only
 - **HTTPS Support**: TLS termination at load balancer level
-- **Comprehensive Logging**: Structured logging with audit trails and performance monitoring
+- **Comprehensive Logging**: High-performance structured logging with zerolog, audit trails, and performance monitoring
+
+## 📊 Logging System
+
+The application uses **zerolog** for high-performance structured logging with zero allocations. The logging system provides comprehensive monitoring, audit trails, and debugging capabilities.
+
+### Logging Features
+
+- **Daily File Rotation**: Automatic daily log file creation with timestamped names (`app-YYYY-MM-DD.log`)
+- **Multiple Output Modes**: Console, file, or both simultaneously
+- **Structured JSON Logs**: Machine-readable logs for production environments
+- **Human-Readable Console**: Developer-friendly output for local development
+- **Audit Logging**: Security and compliance logging for sensitive operations
+- **Performance Monitoring**: Request timing, database query performance, and resource usage
+- **Contextual Logging**: Request ID correlation and user context throughout request lifecycle
+- **Log File Management**: Automatic cleanup, compression, and retention policies
+
+### Log Configuration
+
+Configure logging behavior through environment variables:
+
+```bash
+# Basic Configuration
+LOG_LEVEL=info                    # Minimum log level (debug, info, warn, error, fatal)
+LOG_FORMAT=json                   # Output format (json for production, console for development)
+LOG_OUTPUT=both                   # Output destination (console, file, both)
+
+# File Management
+LOG_DIRECTORY=logs               # Directory for log files
+LOG_MAX_AGE=30                   # Days to keep log files (0 = keep all)
+LOG_MAX_BACKUPS=10               # Number of backup files to keep (0 = keep all)
+LOG_MAX_SIZE=100                 # Maximum file size in MB before rotation
+LOG_COMPRESS=true                # Compress rotated files to save space
+LOG_LOCAL_TIME=true              # Use local time for file names
+
+# Advanced Options
+LOG_CALLER_INFO=false            # Include file and line number in logs
+LOG_SAMPLING_ENABLED=false       # Enable sampling for high-volume scenarios
+LOG_SAMPLING_INITIAL=100         # Initial sampling rate
+LOG_SAMPLING_THEREAFTER=100      # Subsequent sampling rate
+```
+
+### Log Levels
+
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| `debug` | Detailed debugging information | Development and troubleshooting |
+| `info` | General application information | Normal operation events |
+| `warn` | Warning conditions | Potential issues that don't stop operation |
+| `error` | Error conditions | Errors that affect specific operations |
+| `fatal` | Critical errors | Errors that cause application shutdown |
+
+### Log Formats
+
+**Production (JSON):**
+```json
+{
+  "timestamp": "2024-01-15T10:30:45.123Z",
+  "level": "info",
+  "message": "Request completed",
+  "request_id": "20240115103045-abc12345",
+  "user_id": 123,
+  "method": "POST",
+  "path": "/api/v1/transfers",
+  "status": 200,
+  "duration_ms": 45,
+  "client_ip": "192.168.1.100"
+}
+```
+
+**Development (Console):**
+```
+2024-01-15T10:30:45Z INF Request completed request_id=20240115103045-abc12345 user_id=123 method=POST path=/api/v1/transfers status=200 duration_ms=45
+```
+
+### Audit Logging
+
+Security-sensitive operations are automatically logged with detailed context:
+
+- **Authentication Events**: Login attempts, token generation, failures
+- **Account Operations**: Account creation, updates, deletions
+- **Money Transfers**: All transfer operations with amounts and participants
+- **Administrative Actions**: Admin operations with user identification
+- **Security Events**: Rate limiting, failed authentication, suspicious activity
+
+**Audit Log Example:**
+```json
+{
+  "timestamp": "2024-01-15T10:30:45.123Z",
+  "level": "info",
+  "message": "Money transfer completed",
+  "log_type": "audit",
+  "event_type": "transfer",
+  "user_id": 123,
+  "from_account_id": 1,
+  "to_account_id": 2,
+  "amount": "100.00",
+  "currency": "USD",
+  "result": "success"
+}
+```
+
+### Performance Monitoring
+
+The logging system automatically tracks performance metrics:
+
+- **HTTP Requests**: Response times, status codes, request sizes
+- **Database Operations**: Query execution times, affected rows
+- **Background Jobs**: Job execution duration, success rates
+- **Resource Usage**: Memory and CPU utilization
+- **External Services**: Third-party API response times
+
+### Log File Management
+
+**File Naming Convention:**
+- Current log: `app-YYYY-MM-DD.log`
+- Rotated logs: `app-YYYY-MM-DD.log.gz` (compressed)
+
+**Automatic Cleanup:**
+- Files older than `LOG_MAX_AGE` days are removed
+- Only `LOG_MAX_BACKUPS` most recent files are kept
+- Rotated files are compressed to save disk space
+
+**Viewing Logs:**
+```bash
+# View current log file
+tail -f logs/app-$(date +%Y-%m-%d).log
+
+# View logs with Docker
+make logs
+
+# Search logs for specific patterns
+grep "error" logs/app-*.log
+grep "user_id=123" logs/app-*.log | jq .
+```
+
+### Troubleshooting Logging Issues
+
+**Common Issues:**
+
+1. **Log files not created:**
+   - Check `LOG_DIRECTORY` permissions
+   - Verify disk space availability
+   - Check `LOG_OUTPUT` configuration
+
+2. **Performance impact:**
+   - Enable sampling with `LOG_SAMPLING_ENABLED=true`
+   - Reduce log level to `warn` or `error`
+   - Use `LOG_OUTPUT=file` to disable console output
+
+3. **Disk space issues:**
+   - Reduce `LOG_MAX_AGE` and `LOG_MAX_BACKUPS`
+   - Enable compression with `LOG_COMPRESS=true`
+   - Monitor disk usage regularly
+
+**Health Check:**
+```bash
+# Check logging system health
+curl http://localhost:8080/api/v1/health
+
+# Verify log file creation
+ls -la logs/
+
+# Test log rotation
+# (Logs rotate automatically at midnight)
+```
 
 ## 🏦 Business Rules
 
@@ -569,9 +738,17 @@ For comprehensive troubleshooting including diagnostics, solutions, and debuggin
 | `READ_TIMEOUT` | `30s` | HTTP read timeout |
 | `WRITE_TIMEOUT` | `30s` | HTTP write timeout |
 | `IDLE_TIMEOUT` | `120s` | HTTP idle timeout |
-| `LOG_LEVEL` | `info` | Logging level |
+| `LOG_LEVEL` | `info` | Logging level (debug/info/warn/error/fatal) |
 | `LOG_FORMAT` | `json` | Log format (json/console) |
 | `LOG_OUTPUT` | `both` | Log output (console/file/both) |
+| `LOG_DIRECTORY` | `logs` | Directory for log files |
+| `LOG_MAX_AGE` | `30` | Days to keep log files |
+| `LOG_MAX_BACKUPS` | `10` | Number of backup files to keep |
+| `LOG_MAX_SIZE` | `100` | Maximum file size in MB |
+| `LOG_COMPRESS` | `true` | Compress rotated files |
+| `LOG_LOCAL_TIME` | `true` | Use local time for file names |
+| `LOG_CALLER_INFO` | `false` | Include caller information |
+| `LOG_SAMPLING_ENABLED` | `false` | Enable log sampling |
 
 ### Security Best Practices
 

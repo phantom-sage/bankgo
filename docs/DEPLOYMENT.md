@@ -147,11 +147,20 @@ READ_TIMEOUT=30s
 WRITE_TIMEOUT=30s
 IDLE_TIMEOUT=120s
 
-# Logging Configuration
-LOG_LEVEL=info
-LOG_FORMAT=json
-LOG_OUTPUT=both
-LOG_DIRECTORY=logs
+# Logging Configuration (Zerolog)
+LOG_LEVEL=info                    # debug, info, warn, error, fatal
+LOG_FORMAT=json                   # json, console
+LOG_OUTPUT=both                   # console, file, both
+LOG_DIRECTORY=logs               # Directory for log files
+LOG_MAX_AGE=30                   # Days to keep log files
+LOG_MAX_BACKUPS=10               # Number of backup files to keep
+LOG_MAX_SIZE=100                 # Maximum size in MB before rotation
+LOG_COMPRESS=true                # Compress rotated files
+LOG_LOCAL_TIME=true              # Use local time for file names
+LOG_CALLER_INFO=false            # Include caller information
+LOG_SAMPLING_ENABLED=false       # Enable log sampling for high volume
+LOG_SAMPLING_INITIAL=100         # Initial sampling rate
+LOG_SAMPLING_THEREAFTER=100      # Subsequent sampling rate
 ```
 
 3. **Start production services:**

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/phantom-sage/bankgo/internal/database"
+	"github.com/phantom-sage/bankgo/internal/logging"
 	"github.com/phantom-sage/bankgo/internal/queue"
 )
 
@@ -26,17 +27,19 @@ type HealthResponse struct {
 
 // HealthHandlers handles health check related HTTP requests
 type HealthHandlers struct {
-	db           *database.DB
-	queueManager *queue.QueueManager
-	version      string
+	db            *database.DB
+	queueManager  *queue.QueueManager
+	loggerManager *logging.LoggerManager
+	version       string
 }
 
 // NewHealthHandlers creates a new health handlers instance
-func NewHealthHandlers(db *database.DB, queueManager *queue.QueueManager, version string) *HealthHandlers {
+func NewHealthHandlers(db *database.DB, queueManager *queue.QueueManager, loggerManager *logging.LoggerManager, version string) *HealthHandlers {
 	return &HealthHandlers{
-		db:           db,
-		queueManager: queueManager,
-		version:      version,
+		db:            db,
+		queueManager:  queueManager,
+		loggerManager: loggerManager,
+		version:       version,
 	}
 }
 
@@ -65,6 +68,13 @@ func (h *HealthHandlers) HealthCheck(c *gin.Context) {
 	redisStatus := h.checkRedisHealth(ctx)
 	response.Services["redis"] = redisStatus
 	if redisStatus.Status != "healthy" {
+		overallHealthy = false
+	}
+
+	// Check logging system health
+	loggingStatus := h.checkLoggingHealth(ctx)
+	response.Services["logging"] = loggingStatus
+	if loggingStatus.Status != "healthy" {
 		overallHealthy = false
 	}
 
@@ -136,5 +146,28 @@ func (h *HealthHandlers) checkRedisHealth(ctx context.Context) HealthStatus {
 	return HealthStatus{
 		Status:  "healthy",
 		Message: "redis connectivity verified",
+	}
+}
+
+// checkLoggingHealth performs logging system health validation
+func (h *HealthHandlers) checkLoggingHealth(ctx context.Context) HealthStatus {
+	if h.loggerManager == nil {
+		return HealthStatus{
+			Status:  "unhealthy",
+			Message: "logger manager not initialized",
+		}
+	}
+
+	// Perform logging system health check
+	if err := h.loggerManager.HealthCheck(); err != nil {
+		return HealthStatus{
+			Status:  "unhealthy",
+			Message: err.Error(),
+		}
+	}
+
+	return HealthStatus{
+		Status:  "healthy",
+		Message: "logging system operational",
 	}
 }

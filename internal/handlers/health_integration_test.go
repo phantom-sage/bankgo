@@ -19,7 +19,7 @@ func TestHealthHandlers_Integration(t *testing.T) {
 
 	t.Run("nil_dependencies", func(t *testing.T) {
 		// Test with nil dependencies to simulate service unavailability
-		handler := NewHealthHandlers(nil, nil, "v1.0.0")
+		handler := NewHealthHandlers(nil, nil, nil, "v1.0.0")
 
 		// Create test router
 		router := gin.New()
@@ -45,7 +45,7 @@ func TestHealthHandlers_Integration(t *testing.T) {
 		assert.WithinDuration(t, time.Now(), response.Timestamp, time.Second)
 
 		// Verify services structure
-		require.Len(t, response.Services, 2)
+		require.Len(t, response.Services, 3)
 
 		dbService := response.Services["database"]
 		assert.Equal(t, "unhealthy", dbService.Status)
@@ -54,10 +54,14 @@ func TestHealthHandlers_Integration(t *testing.T) {
 		redisService := response.Services["redis"]
 		assert.Equal(t, "unhealthy", redisService.Status)
 		assert.Equal(t, "redis connection not initialized", redisService.Message)
+
+		loggingService := response.Services["logging"]
+		assert.Equal(t, "unhealthy", loggingService.Status)
+		assert.Equal(t, "logger manager not initialized", loggingService.Message)
 	})
 
 	t.Run("response_format_validation", func(t *testing.T) {
-		handler := NewHealthHandlers(nil, nil, "test-version")
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 		// Create test router
 		router := gin.New()
@@ -85,8 +89,10 @@ func TestHealthHandlers_Integration(t *testing.T) {
 		// Verify required services are present
 		_, hasDatabase := response.Services["database"]
 		_, hasRedis := response.Services["redis"]
+		_, hasLogging := response.Services["logging"]
 		assert.True(t, hasDatabase, "Response should include database service status")
 		assert.True(t, hasRedis, "Response should include redis service status")
+		assert.True(t, hasLogging, "Response should include logging service status")
 
 		// Verify service status structure
 		for serviceName, serviceStatus := range response.Services {
@@ -97,7 +103,7 @@ func TestHealthHandlers_Integration(t *testing.T) {
 	})
 
 	t.Run("http_methods", func(t *testing.T) {
-		handler := NewHealthHandlers(nil, nil, "test-version")
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 		// Create test router
 		router := gin.New()
@@ -135,7 +141,7 @@ func TestHealthHandlers_Integration(t *testing.T) {
 
 	t.Run("timeout_handling", func(t *testing.T) {
 		// Test that health check completes within reasonable time
-		handler := NewHealthHandlers(nil, nil, "test-version")
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 		// Create test router
 		router := gin.New()
@@ -160,7 +166,7 @@ func TestHealthHandlers_Integration(t *testing.T) {
 
 	t.Run("concurrent_requests", func(t *testing.T) {
 		// Test that health check can handle concurrent requests
-		handler := NewHealthHandlers(nil, nil, "test-version")
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 		// Create test router
 		router := gin.New()
@@ -204,7 +210,7 @@ func TestHealthHandlers_DatabaseConnectivity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("database_nil_check", func(t *testing.T) {
-		handler := NewHealthHandlers(nil, nil, "test-version")
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 		// Create context for health check
 		ctx := context.Background()
@@ -222,7 +228,7 @@ func TestHealthHandlers_RedisConnectivity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("redis_nil_check", func(t *testing.T) {
-		handler := NewHealthHandlers(nil, nil, "test-version")
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 		// Create context for health check
 		ctx := context.Background()

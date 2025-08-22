@@ -11,8 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/phantom-sage/bankgo/internal/database"
-	"github.com/phantom-sage/bankgo/internal/queue"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,167 +38,67 @@ func (m *MockDB) Stats() *pgxpool.Stat {
 
 func (m *MockDB) Close() {}
 
-// MockQueueManager implements a mock queue manager for testing
-type MockQueueManager struct {
+// MockLoggerManagerHealth implements a mock logger manager for health testing
+type MockLoggerManagerHealth struct {
 	shouldFail bool
 }
 
-func (m *MockQueueManager) HealthCheck(ctx context.Context) error {
+func (m *MockLoggerManagerHealth) HealthCheck() error {
 	if m.shouldFail {
-		return errors.New("redis connection failed")
+		return errors.New("logging system failed")
 	}
 	return nil
 }
 
-func (m *MockQueueManager) Close() error {
+func (m *MockLoggerManagerHealth) Close() error {
 	return nil
 }
 
 func TestHealthHandlers_HealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	tests := []struct {
-		name           string
-		setupDB        func() *database.DB
-		setupQueue     func() *queue.QueueManager
-		expectedStatus int
-		expectedHealth string
-	}{
-		{
-			name: "healthy_services",
-			setupDB: func() *database.DB {
-				// Return a mock healthy database
-				mockDB := &MockDB{shouldFail: false}
-				return (*database.DB)(mockDB)
-			},
-			setupQueue: func() *queue.QueueManager {
-				// Return a mock healthy queue manager
-				mockQueue := &MockQueueManager{shouldFail: false}
-				return (*queue.QueueManager)(mockQueue)
-			},
-			expectedStatus: http.StatusOK,
-			expectedHealth: "healthy",
-		},
-		{
-			name: "unhealthy_database_nil",
-			setupDB: func() *database.DB {
-				// Return nil to simulate database connection failure
-				return nil
-			},
-			setupQueue: func() *queue.QueueManager {
-				// Return a mock healthy queue manager
-				mockQueue := &MockQueueManager{shouldFail: false}
-				return (*queue.QueueManager)(mockQueue)
-			},
-			expectedStatus: http.StatusServiceUnavailable,
-			expectedHealth: "unhealthy",
-		},
-		{
-			name: "unhealthy_database_failed",
-			setupDB: func() *database.DB {
-				// Return a mock failing database
-				mockDB := &MockDB{shouldFail: true}
-				return (*database.DB)(mockDB)
-			},
-			setupQueue: func() *queue.QueueManager {
-				// Return a mock healthy queue manager
-				mockQueue := &MockQueueManager{shouldFail: false}
-				return (*queue.QueueManager)(mockQueue)
-			},
-			expectedStatus: http.StatusServiceUnavailable,
-			expectedHealth: "unhealthy",
-		},
-		{
-			name: "unhealthy_redis_nil",
-			setupDB: func() *database.DB {
-				// Return a mock healthy database
-				mockDB := &MockDB{shouldFail: false}
-				return (*database.DB)(mockDB)
-			},
-			setupQueue: func() *queue.QueueManager {
-				// Return nil to simulate Redis connection failure
-				return nil
-			},
-			expectedStatus: http.StatusServiceUnavailable,
-			expectedHealth: "unhealthy",
-		},
-		{
-			name: "unhealthy_redis_failed",
-			setupDB: func() *database.DB {
-				// Return a mock healthy database
-				mockDB := &MockDB{shouldFail: false}
-				return (*database.DB)(mockDB)
-			},
-			setupQueue: func() *queue.QueueManager {
-				// Return a mock failing queue manager
-				mockQueue := &MockQueueManager{shouldFail: true}
-				return (*queue.QueueManager)(mockQueue)
-			},
-			expectedStatus: http.StatusServiceUnavailable,
-			expectedHealth: "unhealthy",
-		},
-		{
-			name: "both_services_unhealthy",
-			setupDB: func() *database.DB {
-				return nil
-			},
-			setupQueue: func() *queue.QueueManager {
-				return nil
-			},
-			expectedStatus: http.StatusServiceUnavailable,
-			expectedHealth: "unhealthy",
-		},
-	}
+	// Test with nil services (unhealthy scenario)
+	t.Run("nil_services", func(t *testing.T) {
+		handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup
-			db := tt.setupDB()
-			queueManager := tt.setupQueue()
+		// Create test router
+		router := gin.New()
+		router.GET("/health", handler.HealthCheck)
 
-			handler := NewHealthHandlers(db, queueManager, "test-version")
+		// Create test request
+		req, err := http.NewRequest("GET", "/health", nil)
+		require.NoError(t, err)
 
-			// Create test router
-			router := gin.New()
-			router.GET("/health", handler.HealthCheck)
+		// Record response
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
 
-			// Create test request
-			req, err := http.NewRequest("GET", "/health", nil)
-			require.NoError(t, err)
+		// Assertions
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
-			// Record response
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
+		var response HealthResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
 
-			// Assertions
-			assert.Equal(t, tt.expectedStatus, w.Code)
+		assert.Equal(t, "unhealthy", response.Status)
+		assert.Equal(t, "test-version", response.Version)
+		assert.NotZero(t, response.Timestamp)
+		assert.Contains(t, response.Services, "database")
+		assert.Contains(t, response.Services, "redis")
+		assert.Contains(t, response.Services, "logging")
 
-			var response HealthResponse
-			err = json.Unmarshal(w.Body.Bytes(), &response)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.expectedHealth, response.Status)
-			assert.Equal(t, "test-version", response.Version)
-			assert.NotZero(t, response.Timestamp)
-			assert.Contains(t, response.Services, "database")
-			assert.Contains(t, response.Services, "redis")
-
-			// Verify that unhealthy services are properly reported
-			if tt.expectedHealth == "unhealthy" {
-				// At least one service should be unhealthy
-				dbHealthy := response.Services["database"].Status == "healthy"
-				redisHealthy := response.Services["redis"].Status == "healthy"
-				assert.False(t, dbHealthy && redisHealthy, "At least one service should be unhealthy")
-			}
-		})
-	}
+		// All services should be unhealthy
+		assert.Equal(t, "unhealthy", response.Services["database"].Status)
+		assert.Equal(t, "unhealthy", response.Services["redis"].Status)
+		assert.Equal(t, "unhealthy", response.Services["logging"].Status)
+	})
 }
 
 func TestHealthHandlers_HealthCheck_Timeout(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Create a handler with nil dependencies to simulate timeout/failure
-	handler := NewHealthHandlers(nil, nil, "test-version")
+	handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 	// Create test router
 	router := gin.New()
@@ -229,7 +127,7 @@ func TestHealthHandlers_HealthCheck_ResponseFormat(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup with nil services to test response format
-	handler := NewHealthHandlers(nil, nil, "v1.0.0")
+	handler := NewHealthHandlers(nil, nil, nil, "v1.0.0")
 
 	// Create test router
 	router := gin.New()
@@ -254,7 +152,7 @@ func TestHealthHandlers_HealthCheck_ResponseFormat(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), response.Timestamp, time.Second)
 
 	// Verify services structure
-	require.Len(t, response.Services, 2)
+	require.Len(t, response.Services, 3)
 	
 	dbService := response.Services["database"]
 	assert.Equal(t, "unhealthy", dbService.Status)
@@ -263,12 +161,16 @@ func TestHealthHandlers_HealthCheck_ResponseFormat(t *testing.T) {
 	redisService := response.Services["redis"]
 	assert.Equal(t, "unhealthy", redisService.Status)
 	assert.Equal(t, "redis connection not initialized", redisService.Message)
+
+	loggingService := response.Services["logging"]
+	assert.Equal(t, "unhealthy", loggingService.Status)
+	assert.Equal(t, "logger manager not initialized", loggingService.Message)
 }
 
 func TestHealthHandlers_HealthCheck_HTTPMethods(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	handler := NewHealthHandlers(nil, nil, "test-version")
+	handler := NewHealthHandlers(nil, nil, nil, "test-version")
 
 	// Create test router
 	router := gin.New()

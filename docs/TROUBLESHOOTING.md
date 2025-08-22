@@ -701,36 +701,54 @@ LOG_OUTPUT=both
 docker-compose restart bankapi
 ```
 
-### Logging Configuration
+### Logging Configuration (Zerolog)
 
-The application supports comprehensive logging with the following options:
+The application uses **zerolog** for high-performance structured logging with the following options:
 
-**Log Levels:** `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `panic`
+**Log Levels:** `debug`, `info`, `warn`, `error`, `fatal`
 **Log Formats:** `json` (structured), `console` (human-readable)
 **Log Outputs:** `console`, `file`, `both`
 
 **Advanced Logging Features:**
-- **Audit Logging**: Track user actions and system events
-- **Performance Logging**: Monitor request/response times and database queries
-- **Context Logging**: Include request IDs and user context
-- **File Rotation**: Automatic log file rotation with compression
+- **Daily File Rotation**: Automatic daily log files with timestamped names (`app-YYYY-MM-DD.log`)
+- **Audit Logging**: Track user actions, authentication, transfers, and security events
+- **Performance Logging**: Monitor HTTP requests, database queries, and background jobs
+- **Context Logging**: Include request IDs, user context, and correlation throughout request lifecycle
+- **File Management**: Automatic cleanup, compression, and retention policies
+- **Zero Allocations**: High-performance logging with minimal memory overhead
 - **Sampling**: Reduce log volume in high-traffic scenarios
 
 **Environment Variables:**
 ```bash
-LOG_LEVEL=info                    # Minimum log level
-LOG_FORMAT=json                   # Log format
-LOG_OUTPUT=both                   # Output destination
+LOG_LEVEL=info                    # Minimum log level (debug, info, warn, error, fatal)
+LOG_FORMAT=json                   # Log format (json, console)
+LOG_OUTPUT=both                   # Output destination (console, file, both)
 LOG_DIRECTORY=logs                # Log file directory
-LOG_MAX_AGE=30                    # Days to keep log files
-LOG_MAX_BACKUPS=10                # Number of backup files
-LOG_MAX_SIZE=100                  # Max file size in MB
-LOG_COMPRESS=true                 # Compress rotated files
-LOG_LOCAL_TIME=true               # Use local timezone
-LOG_CALLER_INFO=false             # Include caller information
-LOG_SAMPLING_ENABLED=false        # Enable log sampling
+LOG_MAX_AGE=30                    # Days to keep log files (0 = keep all)
+LOG_MAX_BACKUPS=10                # Number of backup files (0 = keep all)
+LOG_MAX_SIZE=100                  # Max file size in MB before rotation
+LOG_COMPRESS=true                 # Compress rotated files to save space
+LOG_LOCAL_TIME=true               # Use local timezone for file names
+LOG_CALLER_INFO=false             # Include file and line number in logs
+LOG_SAMPLING_ENABLED=false        # Enable log sampling for high volume
 LOG_SAMPLING_INITIAL=100          # Initial sampling rate
 LOG_SAMPLING_THEREAFTER=100       # Subsequent sampling rate
+```
+
+**Log File Management:**
+```bash
+# View current log file
+tail -f logs/app-$(date +%Y-%m-%d).log
+
+# View logs with JSON formatting
+tail -f logs/app-$(date +%Y-%m-%d).log | jq .
+
+# Search for specific patterns
+grep "error" logs/app-*.log
+grep "user_id=123" logs/app-*.log
+
+# Check log file sizes and rotation
+ls -lah logs/
 ```
 
 ### Log Analysis
@@ -748,6 +766,130 @@ docker-compose logs worker | grep "email"
 
 # Performance issues
 docker-compose logs bankapi | grep "slow"
+
+# View structured logs with jq
+docker-compose logs bankapi | jq 'select(.level == "error")'
+docker-compose logs bankapi | jq 'select(.user_id == 123)'
+docker-compose logs bankapi | jq 'select(.duration_ms > 1000)'
+```
+
+### Logging Issues
+
+#### Log Files Not Created
+
+**Symptoms:**
+- No log files in the configured directory
+- Application starts but no file output
+
+**Diagnosis:**
+```bash
+# Check log directory permissions
+ls -la logs/
+
+# Check disk space
+df -h
+
+# Check configuration
+docker-compose logs bankapi | grep "log"
+```
+
+**Solutions:**
+```bash
+# Create log directory with proper permissions
+mkdir -p logs
+chmod 755 logs
+
+# Check environment variables
+echo $LOG_DIRECTORY
+echo $LOG_OUTPUT
+
+# Restart with file logging enabled
+LOG_OUTPUT=both docker-compose restart bankapi
+```
+
+#### Log Files Too Large
+
+**Symptoms:**
+- Disk space running low
+- Large log files not rotating
+
+**Diagnosis:**
+```bash
+# Check log file sizes
+du -sh logs/*
+
+# Check rotation configuration
+echo $LOG_MAX_SIZE
+echo $LOG_MAX_AGE
+echo $LOG_MAX_BACKUPS
+```
+
+**Solutions:**
+```bash
+# Enable compression
+LOG_COMPRESS=true docker-compose restart bankapi
+
+# Reduce retention
+LOG_MAX_AGE=7 LOG_MAX_BACKUPS=5 docker-compose restart bankapi
+
+# Manual cleanup
+find logs/ -name "*.log" -mtime +7 -delete
+```
+
+#### Performance Impact from Logging
+
+**Symptoms:**
+- High CPU usage
+- Slow response times
+- Memory issues
+
+**Diagnosis:**
+```bash
+# Check log volume
+wc -l logs/app-$(date +%Y-%m-%d).log
+
+# Monitor resource usage
+docker stats bankapi
+```
+
+**Solutions:**
+```bash
+# Reduce log level
+LOG_LEVEL=warn docker-compose restart bankapi
+
+# Enable sampling for high volume
+LOG_SAMPLING_ENABLED=true LOG_SAMPLING_INITIAL=10 docker-compose restart bankapi
+
+# Use file-only output
+LOG_OUTPUT=file docker-compose restart bankapi
+```
+
+#### Missing Log Context
+
+**Symptoms:**
+- Logs missing request IDs
+- No user context in logs
+- Difficult to trace requests
+
+**Diagnosis:**
+```bash
+# Check for request_id field
+docker-compose logs bankapi | jq 'select(.request_id)'
+
+# Check middleware configuration
+docker-compose logs bankapi | grep "middleware"
+```
+
+**Solutions:**
+```bash
+# Ensure middleware is properly configured
+# Check internal/middleware/logger.go
+
+# Verify context propagation
+# Check service layer implementations
+
+# Enable caller information for debugging
+LOG_CALLER_INFO=true docker-compose restart bankapi
 ```
 
 ### Debug Tools
