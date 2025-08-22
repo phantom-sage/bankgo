@@ -1,0 +1,186 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: bankapi-postgres
+    environment:
+      POSTGRES_DB: bankapi
+      POSTGRES_USER: bankuser
+      POSTGRES_PASSWORD: bankpass123
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./internal/database/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - bankapi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bankuser -d bankapi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Redis Cache and Queue
+  redis:
+    image: redis:7-alpine
+    container_name: bankapi-redis
+    command: redis-server --requirepass redispass123 --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - bankapi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+
+  # Bank API Application
+  bankapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bankapi-server
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: bankapi
+      DB_USER: bankuser
+      DB_PASSWORD: bankpass123
+      DB_SSL_MODE: disable
+      DB_MAX_OPEN_CONNS: 25
+      DB_MAX_IDLE_CONNS: 5
+      DB_CONN_MAX_LIFETIME: 5m
+      DB_CONN_MAX_IDLE_TIME: 5m
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redispass123
+      REDIS_DB: 0
+      REDIS_POOL_SIZE: 10
+      REDIS_MIN_IDLE_CONNS: 5
+      
+      # PASETO Authentication
+      PASETO_SECRET_KEY: dev-secret-key-change-in-production-32-chars
+      PASETO_EXPIRATION: 24h
+      
+      # Email Configuration (for development)
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: dev@example.com
+      SMTP_PASSWORD: dev-password
+      FROM_EMAIL: noreply@bankapi.com
+      FROM_NAME: Bank API
+      
+      # Server Configuration
+      PORT: 8080
+      HOST: 0.0.0.0
+      GIN_MODE: release
+      READ_TIMEOUT: 30s
+      WRITE_TIMEOUT: 30s
+      IDLE_TIMEOUT: 120s
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bankapi-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    restart: unless-stopped
+
+  # Asyncq Worker for Email Processing
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bankapi-worker
+    command: ["./main", "-worker"]
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: bankapi
+      DB_USER: bankuser
+      DB_PASSWORD: bankpass123
+      DB_SSL_MODE: disable
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redispass123
+      REDIS_DB: 0
+      REDIS_POOL_SIZE: 10
+      REDIS_MIN_IDLE_CONNS: 5
+      
+      # Email Configuration
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: dev@example.com
+      SMTP_PASSWORD: dev-password
+      FROM_EMAIL: noreply@bankapi.com
+      FROM_NAME: Bank API
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bankapi-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  bankapi-network:
+    driver: bridge
