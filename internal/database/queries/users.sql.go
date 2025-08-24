@@ -11,12 +11,281 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminCountUsers = `-- name: AdminCountUsers :one
+SELECT COUNT(*)
+FROM users u
+WHERE 
+    ($1::text IS NULL OR u.email ILIKE '%' || $1 || '%' OR u.first_name ILIKE '%' || $1 || '%' OR u.last_name ILIKE '%' || $1 || '%')
+    AND ($2::boolean IS NULL OR u.is_active = $2)
+`
+
+type AdminCountUsersParams struct {
+	Column1 string `db:"column_1" json:"column_1"`
+	Column2 bool   `db:"column_2" json:"column_2"`
+}
+
+func (q *Queries) AdminCountUsers(ctx context.Context, arg AdminCountUsersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, adminCountUsers, arg.Column1, arg.Column2)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const adminCreateUser = `-- name: AdminCreateUser :one
+INSERT INTO users (
+    email, password_hash, first_name, last_name, is_active
+) VALUES (
+    $1, $2, $3, $4, COALESCE($5, true)
+) RETURNING id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active
+`
+
+type AdminCreateUserParams struct {
+	Email        string      `db:"email" json:"email"`
+	PasswordHash string      `db:"password_hash" json:"password_hash"`
+	FirstName    string      `db:"first_name" json:"first_name"`
+	LastName     string      `db:"last_name" json:"last_name"`
+	Column5      interface{} `db:"column_5" json:"column_5"`
+}
+
+func (q *Queries) AdminCreateUser(ctx context.Context, arg AdminCreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, adminCreateUser,
+		arg.Email,
+		arg.PasswordHash,
+		arg.FirstName,
+		arg.LastName,
+		arg.Column5,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.WelcomeEmailSent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsActive,
+	)
+	return i, err
+}
+
+const adminDeleteUser = `-- name: AdminDeleteUser :exec
+DELETE FROM users
+WHERE id = $1
+`
+
+func (q *Queries) AdminDeleteUser(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, adminDeleteUser, id)
+	return err
+}
+
+const adminDisableUser = `-- name: AdminDisableUser :exec
+UPDATE users
+SET 
+    is_active = false,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) AdminDisableUser(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, adminDisableUser, id)
+	return err
+}
+
+const adminEnableUser = `-- name: AdminEnableUser :exec
+UPDATE users
+SET 
+    is_active = true,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+func (q *Queries) AdminEnableUser(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, adminEnableUser, id)
+	return err
+}
+
+const adminGetUserDetail = `-- name: AdminGetUserDetail :one
+SELECT 
+    u.id, u.email, u.password_hash, u.first_name, u.last_name, u.welcome_email_sent, u.created_at, u.updated_at, u.is_active,
+    COUNT(DISTINCT a.id) as account_count,
+    COUNT(DISTINCT t.id) as transfer_count
+FROM users u
+LEFT JOIN accounts a ON u.id = a.user_id
+LEFT JOIN transfers t ON (a.id = t.from_account_id OR a.id = t.to_account_id)
+WHERE u.id = $1
+GROUP BY u.id
+`
+
+type AdminGetUserDetailRow struct {
+	ID               int32            `db:"id" json:"id"`
+	Email            string           `db:"email" json:"email"`
+	PasswordHash     string           `db:"password_hash" json:"password_hash"`
+	FirstName        string           `db:"first_name" json:"first_name"`
+	LastName         string           `db:"last_name" json:"last_name"`
+	WelcomeEmailSent pgtype.Bool      `db:"welcome_email_sent" json:"welcome_email_sent"`
+	CreatedAt        pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	IsActive         pgtype.Bool      `db:"is_active" json:"is_active"`
+	AccountCount     int64            `db:"account_count" json:"account_count"`
+	TransferCount    int64            `db:"transfer_count" json:"transfer_count"`
+}
+
+func (q *Queries) AdminGetUserDetail(ctx context.Context, id int32) (AdminGetUserDetailRow, error) {
+	row := q.db.QueryRow(ctx, adminGetUserDetail, id)
+	var i AdminGetUserDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.WelcomeEmailSent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsActive,
+		&i.AccountCount,
+		&i.TransferCount,
+	)
+	return i, err
+}
+
+const adminListUsers = `-- name: AdminListUsers :many
+
+SELECT 
+    u.id, u.email, u.password_hash, u.first_name, u.last_name, u.welcome_email_sent, u.created_at, u.updated_at, u.is_active,
+    COUNT(DISTINCT a.id) as account_count,
+    COUNT(DISTINCT t.id) as transfer_count
+FROM users u
+LEFT JOIN accounts a ON u.id = a.user_id
+LEFT JOIN transfers t ON (a.id = t.from_account_id OR a.id = t.to_account_id)
+WHERE 
+    ($3::text IS NULL OR u.email ILIKE '%' || $3 || '%' OR u.first_name ILIKE '%' || $3 || '%' OR u.last_name ILIKE '%' || $3 || '%')
+    AND ($4::boolean IS NULL OR u.is_active = $4)
+GROUP BY u.id
+ORDER BY 
+    CASE WHEN $5 = 'email' AND $6 = false THEN u.email END ASC,
+    CASE WHEN $5 = 'email' AND $6 = true THEN u.email END DESC,
+    CASE WHEN $5 = 'first_name' AND $6 = false THEN u.first_name END ASC,
+    CASE WHEN $5 = 'first_name' AND $6 = true THEN u.first_name END DESC,
+    CASE WHEN $5 = 'last_name' AND $6 = false THEN u.last_name END ASC,
+    CASE WHEN $5 = 'last_name' AND $6 = true THEN u.last_name END DESC,
+    CASE WHEN $5 = 'created_at' AND $6 = false THEN u.created_at END ASC,
+    CASE WHEN $5 = 'created_at' AND $6 = true THEN u.created_at END DESC,
+    u.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type AdminListUsersParams struct {
+	Limit   int32       `db:"limit" json:"limit"`
+	Offset  int32       `db:"offset" json:"offset"`
+	Column3 string      `db:"column_3" json:"column_3"`
+	Column4 bool        `db:"column_4" json:"column_4"`
+	Column5 interface{} `db:"column_5" json:"column_5"`
+	Column6 interface{} `db:"column_6" json:"column_6"`
+}
+
+type AdminListUsersRow struct {
+	ID               int32            `db:"id" json:"id"`
+	Email            string           `db:"email" json:"email"`
+	PasswordHash     string           `db:"password_hash" json:"password_hash"`
+	FirstName        string           `db:"first_name" json:"first_name"`
+	LastName         string           `db:"last_name" json:"last_name"`
+	WelcomeEmailSent pgtype.Bool      `db:"welcome_email_sent" json:"welcome_email_sent"`
+	CreatedAt        pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	IsActive         pgtype.Bool      `db:"is_active" json:"is_active"`
+	AccountCount     int64            `db:"account_count" json:"account_count"`
+	TransferCount    int64            `db:"transfer_count" json:"transfer_count"`
+}
+
+// Admin-specific user management queries
+func (q *Queries) AdminListUsers(ctx context.Context, arg AdminListUsersParams) ([]AdminListUsersRow, error) {
+	rows, err := q.db.Query(ctx, adminListUsers,
+		arg.Limit,
+		arg.Offset,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminListUsersRow{}
+	for rows.Next() {
+		var i AdminListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.FirstName,
+			&i.LastName,
+			&i.WelcomeEmailSent,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsActive,
+			&i.AccountCount,
+			&i.TransferCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminUpdateUser = `-- name: AdminUpdateUser :one
+UPDATE users
+SET 
+    first_name = COALESCE($2, first_name),
+    last_name = COALESCE($3, last_name),
+    is_active = COALESCE($4, is_active),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active
+`
+
+type AdminUpdateUserParams struct {
+	ID        int32       `db:"id" json:"id"`
+	FirstName pgtype.Text `db:"first_name" json:"first_name"`
+	LastName  pgtype.Text `db:"last_name" json:"last_name"`
+	IsActive  pgtype.Bool `db:"is_active" json:"is_active"`
+}
+
+func (q *Queries) AdminUpdateUser(ctx context.Context, arg AdminUpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, adminUpdateUser,
+		arg.ID,
+		arg.FirstName,
+		arg.LastName,
+		arg.IsActive,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.WelcomeEmailSent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsActive,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     email, password_hash, first_name, last_name
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at
+) RETURNING id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active
 `
 
 type CreateUserParams struct {
@@ -43,6 +312,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.WelcomeEmailSent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsActive,
 	)
 	return i, err
 }
@@ -58,7 +328,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at FROM users
+SELECT id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -74,12 +344,13 @@ func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
 		&i.WelcomeEmailSent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsActive,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at FROM users
+SELECT id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active FROM users
 WHERE email = $1 LIMIT 1
 `
 
@@ -95,12 +366,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.WelcomeEmailSent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsActive,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at FROM users
+SELECT id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active FROM users
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
 `
@@ -128,6 +400,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.WelcomeEmailSent,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsActive,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +432,7 @@ SET
     last_name = COALESCE($3, last_name),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at
+RETURNING id, email, password_hash, first_name, last_name, welcome_email_sent, created_at, updated_at, is_active
 `
 
 type UpdateUserParams struct {
@@ -180,6 +453,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.WelcomeEmailSent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsActive,
 	)
 	return i, err
 }

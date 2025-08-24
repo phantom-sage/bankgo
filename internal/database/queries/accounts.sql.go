@@ -39,6 +39,38 @@ func (q *Queries) AddToBalance(ctx context.Context, arg AddToBalanceParams) (Acc
 	return i, err
 }
 
+const countAccounts = `-- name: CountAccounts :one
+SELECT COUNT(*)
+FROM accounts a
+JOIN users u ON a.user_id = u.id
+WHERE ($1::text IS NULL OR u.email ILIKE '%' || $1 || '%' OR u.first_name ILIKE '%' || $1 || '%' OR u.last_name ILIKE '%' || $1 || '%')
+  AND ($2::text IS NULL OR a.currency = $2)
+  AND ($3::numeric IS NULL OR a.balance >= $3)
+  AND ($4::numeric IS NULL OR a.balance <= $4)
+  AND ($5::bool IS NULL OR u.is_active = $5)
+`
+
+type CountAccountsParams struct {
+	Column1 string         `db:"column_1" json:"column_1"`
+	Column2 string         `db:"column_2" json:"column_2"`
+	Column3 pgtype.Numeric `db:"column_3" json:"column_3"`
+	Column4 pgtype.Numeric `db:"column_4" json:"column_4"`
+	Column5 bool           `db:"column_5" json:"column_5"`
+}
+
+func (q *Queries) CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccounts,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO accounts (
     user_id, currency, balance
@@ -75,6 +107,28 @@ WHERE id = $1 AND balance = 0.00
 func (q *Queries) DeleteAccount(ctx context.Context, id int32) error {
 	_, err := q.db.Exec(ctx, deleteAccount, id)
 	return err
+}
+
+const freezeAccount = `-- name: FreezeAccount :one
+UPDATE accounts
+SET 
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, user_id, currency, balance, created_at, updated_at
+`
+
+func (q *Queries) FreezeAccount(ctx context.Context, id int32) (Account, error) {
+	row := q.db.QueryRow(ctx, freezeAccount, id)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Currency,
+		&i.Balance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getAccount = `-- name: GetAccount :one
@@ -136,6 +190,44 @@ func (q *Queries) GetAccountForUpdate(ctx context.Context, id int32) (Account, e
 		&i.Balance,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAccountWithUser = `-- name: GetAccountWithUser :one
+SELECT a.id, a.user_id, a.currency, a.balance, a.created_at, a.updated_at, u.email, u.first_name, u.last_name, u.is_active
+FROM accounts a
+JOIN users u ON a.user_id = u.id
+WHERE a.id = $1 LIMIT 1
+`
+
+type GetAccountWithUserRow struct {
+	ID        int32            `db:"id" json:"id"`
+	UserID    int32            `db:"user_id" json:"user_id"`
+	Currency  string           `db:"currency" json:"currency"`
+	Balance   pgtype.Numeric   `db:"balance" json:"balance"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	Email     string           `db:"email" json:"email"`
+	FirstName string           `db:"first_name" json:"first_name"`
+	LastName  string           `db:"last_name" json:"last_name"`
+	IsActive  pgtype.Bool      `db:"is_active" json:"is_active"`
+}
+
+func (q *Queries) GetAccountWithUser(ctx context.Context, id int32) (GetAccountWithUserRow, error) {
+	row := q.db.QueryRow(ctx, getAccountWithUser, id)
+	var i GetAccountWithUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Currency,
+		&i.Balance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.FirstName,
+		&i.LastName,
+		&i.IsActive,
 	)
 	return i, err
 }
@@ -261,6 +353,81 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]L
 	return items, nil
 }
 
+const searchAccounts = `-- name: SearchAccounts :many
+SELECT a.id, a.user_id, a.currency, a.balance, a.created_at, a.updated_at, u.email, u.first_name, u.last_name, u.is_active
+FROM accounts a
+JOIN users u ON a.user_id = u.id
+WHERE ($1::text IS NULL OR u.email ILIKE '%' || $1 || '%' OR u.first_name ILIKE '%' || $1 || '%' OR u.last_name ILIKE '%' || $1 || '%')
+  AND ($2::text IS NULL OR a.currency = $2)
+  AND ($3::numeric IS NULL OR a.balance >= $3)
+  AND ($4::numeric IS NULL OR a.balance <= $4)
+  AND ($5::bool IS NULL OR u.is_active = $5)
+ORDER BY a.created_at DESC
+LIMIT $6 OFFSET $7
+`
+
+type SearchAccountsParams struct {
+	Column1 string         `db:"column_1" json:"column_1"`
+	Column2 string         `db:"column_2" json:"column_2"`
+	Column3 pgtype.Numeric `db:"column_3" json:"column_3"`
+	Column4 pgtype.Numeric `db:"column_4" json:"column_4"`
+	Column5 bool           `db:"column_5" json:"column_5"`
+	Limit   int32          `db:"limit" json:"limit"`
+	Offset  int32          `db:"offset" json:"offset"`
+}
+
+type SearchAccountsRow struct {
+	ID        int32            `db:"id" json:"id"`
+	UserID    int32            `db:"user_id" json:"user_id"`
+	Currency  string           `db:"currency" json:"currency"`
+	Balance   pgtype.Numeric   `db:"balance" json:"balance"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	Email     string           `db:"email" json:"email"`
+	FirstName string           `db:"first_name" json:"first_name"`
+	LastName  string           `db:"last_name" json:"last_name"`
+	IsActive  pgtype.Bool      `db:"is_active" json:"is_active"`
+}
+
+func (q *Queries) SearchAccounts(ctx context.Context, arg SearchAccountsParams) ([]SearchAccountsRow, error) {
+	rows, err := q.db.Query(ctx, searchAccounts,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchAccountsRow{}
+	for rows.Next() {
+		var i SearchAccountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Currency,
+			&i.Balance,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.IsActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const subtractFromBalance = `-- name: SubtractFromBalance :one
 UPDATE accounts
 SET 
@@ -277,6 +444,28 @@ type SubtractFromBalanceParams struct {
 
 func (q *Queries) SubtractFromBalance(ctx context.Context, arg SubtractFromBalanceParams) (Account, error) {
 	row := q.db.QueryRow(ctx, subtractFromBalance, arg.ID, arg.Balance)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Currency,
+		&i.Balance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const unfreezeAccount = `-- name: UnfreezeAccount :one
+UPDATE accounts
+SET 
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, user_id, currency, balance, created_at, updated_at
+`
+
+func (q *Queries) UnfreezeAccount(ctx context.Context, id int32) (Account, error) {
+	row := q.db.QueryRow(ctx, unfreezeAccount, id)
 	var i Account
 	err := row.Scan(
 		&i.ID,

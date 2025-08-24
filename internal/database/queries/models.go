@@ -17,6 +17,25 @@ type Account struct {
 	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
 }
 
+type Alert struct {
+	ID             pgtype.UUID        `db:"id" json:"id"`
+	Severity       string             `db:"severity" json:"severity"`
+	Title          string             `db:"title" json:"title"`
+	Message        string             `db:"message" json:"message"`
+	Source         string             `db:"source" json:"source"`
+	Timestamp      pgtype.Timestamptz `db:"timestamp" json:"timestamp"`
+	Acknowledged   bool               `db:"acknowledged" json:"acknowledged"`
+	AcknowledgedBy pgtype.Text        `db:"acknowledged_by" json:"acknowledged_by"`
+	AcknowledgedAt pgtype.Timestamptz `db:"acknowledged_at" json:"acknowledged_at"`
+	Resolved       bool               `db:"resolved" json:"resolved"`
+	ResolvedBy     pgtype.Text        `db:"resolved_by" json:"resolved_by"`
+	ResolvedAt     pgtype.Timestamptz `db:"resolved_at" json:"resolved_at"`
+	ResolvedNotes  pgtype.Text        `db:"resolved_notes" json:"resolved_notes"`
+	Metadata       []byte             `db:"metadata" json:"metadata"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Transfer struct {
 	ID            int32            `db:"id" json:"id"`
 	FromAccountID int32            `db:"from_account_id" json:"from_account_id"`
@@ -36,4 +55,5 @@ type User struct {
 	WelcomeEmailSent pgtype.Bool      `db:"welcome_email_sent" json:"welcome_email_sent"`
 	CreatedAt        pgtype.Timestamp `db:"created_at" json:"created_at"`
 	UpdatedAt        pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	IsActive         pgtype.Bool      `db:"is_active" json:"is_active"`
 }

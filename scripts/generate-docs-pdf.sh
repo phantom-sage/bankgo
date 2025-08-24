@@ -83,14 +83,16 @@ generate_toc() {
     log_info "Generating table of contents..."
     
     cat > "$TEMP_DIR/00-toc.md" << 'EOF'
-# Bank REST API Documentation
+# BankGo Complete Documentation
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [API Reference](#api-reference)  
-3. [Deployment Guide](#deployment-guide)
-4. [Troubleshooting Guide](#troubleshooting-guide)
+1. [Bank REST API Overview](#bank-rest-api-overview)
+2. [Admin Dashboard Frontend](#admin-dashboard-frontend)
+3. [API Reference](#api-reference)  
+4. [Deployment Guide](#deployment-guide)
+5. [Logging Guide](#logging-guide)
+6. [Troubleshooting Guide](#troubleshooting-guide)
 
 ---
 
@@ -116,7 +118,7 @@ combine_docs() {
     # Add main README (overview)
     log_info "Processing README.md..."
     echo -e "\n\\newpage\n" >> "$TEMP_DIR/00-toc.md"
-    echo "# Overview" >> "$TEMP_DIR/00-toc.md"
+    echo "# Bank REST API Overview" >> "$TEMP_DIR/00-toc.md"
     echo "" >> "$TEMP_DIR/00-toc.md"
     
     # Process README.md and remove the first title (we'll add our own)
@@ -126,6 +128,23 @@ combine_docs() {
     else
         # Keep emojis for HTML generation
         tail -n +2 README.md >> "$TEMP_DIR/00-toc.md"
+    fi
+    
+    # Add Admin Frontend Documentation
+    if [[ -f "admin-frontend/README.md" ]]; then
+        log_info "Processing admin-frontend/README.md..."
+        echo -e "\n\\newpage\n" >> "$TEMP_DIR/00-toc.md"
+        echo "# Admin Dashboard Frontend" >> "$TEMP_DIR/00-toc.md"
+        echo "" >> "$TEMP_DIR/00-toc.md"
+        
+        # Process admin frontend README and remove the first title
+        if [[ "$USE_HTML" != "true" ]]; then
+            # Clean emojis for PDF generation
+            tail -n +2 admin-frontend/README.md | python3 -c "import sys, re; print(re.sub(r'[^\x00-\x7F]+', '', sys.stdin.read()))" >> "$TEMP_DIR/00-toc.md"
+        else
+            # Keep emojis for HTML generation
+            tail -n +2 admin-frontend/README.md >> "$TEMP_DIR/00-toc.md"
+        fi
     fi
     
     # Process each documentation file

@@ -17,11 +17,10 @@ import (
 	"github.com/phantom-sage/bankgo/internal/models"
 	"github.com/phantom-sage/bankgo/internal/queue"
 	"github.com/shopspring/decimal"
-	"	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/rs/zerolog"
-	"os""
-	"github.com/stretchr/testify/require"
+	"os"
 )
 
 // TestConcurrentTransferOperations tests concurrent transfer operations

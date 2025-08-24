@@ -149,6 +149,26 @@ This feature introduces a comprehensive administrative system for managing the e
 
 ### Requirement 11
 
+**User Story:** As a system administrator, I want to see a beautiful and meaningful loading animation when the dashboard is preparing, so that I have an engaging visual experience that reflects the financial nature of the banking system.
+
+#### Acceptance Criteria
+
+1. WHEN the admin dashboard is accessed THEN the system SHALL display a loading animation before showing the main dashboard interface
+2. WHEN the loading animation starts THEN the system SHALL display the text "BankGo" in an empty, outlined state
+3. WHEN the animation progresses THEN the system SHALL gradually fill the "BankGo" text with a water-like liquid animation from bottom to top
+4. WHEN the water-filling effect is rendered THEN the system SHALL use money-themed colors including gold (#FFD700), emerald green (#50C878), deep blue (#003366), and silver (#C0C0C0)
+5. WHEN the liquid fills the text THEN the system SHALL create smooth, realistic water movement with gentle waves and ripples
+6. WHEN the animation is displayed THEN the system SHALL ensure the water effect has a subtle shimmer or sparkle to represent the value and beauty of money
+7. WHEN the filling animation completes THEN the system SHALL hold the fully filled state for a brief moment before transitioning to the dashboard
+8. WHEN the animation transitions to the dashboard THEN the system SHALL use a smooth fade or slide transition that maintains visual continuity
+9. WHEN the loading process takes longer than expected THEN the system SHALL continue the water animation with subtle variations to keep it engaging
+10. WHEN the animation is rendered THEN the system SHALL ensure it works smoothly across different screen sizes and devices
+11. WHEN the loading animation is displayed THEN the system SHALL use modern CSS animations or SVG animations for optimal performance
+12. WHEN the water effect is created THEN the system SHALL implement gradient colors that transition smoothly between the money-themed palette
+13. WHEN the animation completes THEN the system SHALL ensure the total loading experience feels premium and reflects the quality of the banking system
+
+### Requirement 12
+
 **User Story:** As a system administrator, I want robust authentication and authorization for the admin system, so that only authorized personnel can access administrative functions.
 
 #### Acceptance Criteria

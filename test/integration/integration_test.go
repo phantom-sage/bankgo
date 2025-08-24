@@ -22,8 +22,8 @@ import (
 	"github.com/phantom-sage/bankgo/internal/queue"
 	"github.com/phantom-sage/bankgo/internal/repository"
 	"github.com/phantom-sage/bankgo/internal/services"
-	"	"github.com/phantom-sage/bankgo/pkg/auth"
-	"github.com/rs/zerolog""
+	"github.com/phantom-sage/bankgo/pkg/auth"
+	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -280,8 +280,9 @@ func (suite *IntegrationTestSuite) parseResponse(w *httptest.ResponseRecorder, v
 // TestIntegrationSuite runs the integration test suite
 func TestIntegrationSuite(t *testing.T) {
 	suite.Run(t, new(IntegrationTestSuite))
-}// T
-estUserRegistrationAndLoginWorkflow tests the complete user registration and login workflow
+}
+
+// TestUserRegistrationAndLoginWorkflow tests the complete user registration and login workflow
 // Requirements: 8 (welcome email queuing and processing)
 func (suite *IntegrationTestSuite) TestUserRegistrationAndLoginWorkflow() {
 	// Test user registration

@@ -11,6 +11,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTransfersAdvanced = `-- name: CountTransfersAdvanced :one
+SELECT COUNT(*)
+FROM transfers t
+JOIN accounts fa ON t.from_account_id = fa.id
+JOIN accounts ta ON t.to_account_id = ta.id
+JOIN users fu ON fa.user_id = fu.id
+JOIN users tu ON ta.user_id = tu.id
+WHERE ($1::int IS NULL OR fa.user_id = $1 OR ta.user_id = $1)
+  AND ($2::int IS NULL OR t.from_account_id = $2 OR t.to_account_id = $2)
+  AND ($3::text IS NULL OR fa.currency = $3)
+  AND ($4::text IS NULL OR t.status = $4)
+  AND ($5::numeric IS NULL OR t.amount >= $5)
+  AND ($6::numeric IS NULL OR t.amount <= $6)
+  AND ($7::timestamp IS NULL OR t.created_at >= $7)
+  AND ($8::timestamp IS NULL OR t.created_at <= $8)
+  AND ($9::text IS NULL OR t.description ILIKE '%' || $9 || '%')
+`
+
+type CountTransfersAdvancedParams struct {
+	Column1 int32            `db:"column_1" json:"column_1"`
+	Column2 int32            `db:"column_2" json:"column_2"`
+	Column3 string           `db:"column_3" json:"column_3"`
+	Column4 string           `db:"column_4" json:"column_4"`
+	Column5 pgtype.Numeric   `db:"column_5" json:"column_5"`
+	Column6 pgtype.Numeric   `db:"column_6" json:"column_6"`
+	Column7 pgtype.Timestamp `db:"column_7" json:"column_7"`
+	Column8 pgtype.Timestamp `db:"column_8" json:"column_8"`
+	Column9 string           `db:"column_9" json:"column_9"`
+}
+
+func (q *Queries) CountTransfersAdvanced(ctx context.Context, arg CountTransfersAdvancedParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTransfersAdvanced,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
+		arg.Column7,
+		arg.Column8,
+		arg.Column9,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTransfersByAccount = `-- name: CountTransfersByAccount :one
 SELECT COUNT(*) FROM transfers
 WHERE from_account_id = $1 OR to_account_id = $1
@@ -414,6 +461,105 @@ func (q *Queries) ListTransfers(ctx context.Context, arg ListTransfersParams) ([
 			&i.ToCurrency,
 			&i.FromUserEmail,
 			&i.ToUserEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchTransfersAdvanced = `-- name: SearchTransfersAdvanced :many
+SELECT t.id, t.from_account_id, t.to_account_id, t.amount, t.description, t.status, t.created_at,
+       fa.currency as from_currency, ta.currency as to_currency,
+       fu.email as from_user_email, tu.email as to_user_email,
+       fu.id as from_user_id, tu.id as to_user_id
+FROM transfers t
+JOIN accounts fa ON t.from_account_id = fa.id
+JOIN accounts ta ON t.to_account_id = ta.id
+JOIN users fu ON fa.user_id = fu.id
+JOIN users tu ON ta.user_id = tu.id
+WHERE ($1::int IS NULL OR fa.user_id = $1 OR ta.user_id = $1)
+  AND ($2::int IS NULL OR t.from_account_id = $2 OR t.to_account_id = $2)
+  AND ($3::text IS NULL OR fa.currency = $3)
+  AND ($4::text IS NULL OR t.status = $4)
+  AND ($5::numeric IS NULL OR t.amount >= $5)
+  AND ($6::numeric IS NULL OR t.amount <= $6)
+  AND ($7::timestamp IS NULL OR t.created_at >= $7)
+  AND ($8::timestamp IS NULL OR t.created_at <= $8)
+  AND ($9::text IS NULL OR t.description ILIKE '%' || $9 || '%')
+ORDER BY t.created_at DESC
+LIMIT $10 OFFSET $11
+`
+
+type SearchTransfersAdvancedParams struct {
+	Column1 int32            `db:"column_1" json:"column_1"`
+	Column2 int32            `db:"column_2" json:"column_2"`
+	Column3 string           `db:"column_3" json:"column_3"`
+	Column4 string           `db:"column_4" json:"column_4"`
+	Column5 pgtype.Numeric   `db:"column_5" json:"column_5"`
+	Column6 pgtype.Numeric   `db:"column_6" json:"column_6"`
+	Column7 pgtype.Timestamp `db:"column_7" json:"column_7"`
+	Column8 pgtype.Timestamp `db:"column_8" json:"column_8"`
+	Column9 string           `db:"column_9" json:"column_9"`
+	Limit   int32            `db:"limit" json:"limit"`
+	Offset  int32            `db:"offset" json:"offset"`
+}
+
+type SearchTransfersAdvancedRow struct {
+	ID            int32            `db:"id" json:"id"`
+	FromAccountID int32            `db:"from_account_id" json:"from_account_id"`
+	ToAccountID   int32            `db:"to_account_id" json:"to_account_id"`
+	Amount        pgtype.Numeric   `db:"amount" json:"amount"`
+	Description   pgtype.Text      `db:"description" json:"description"`
+	Status        pgtype.Text      `db:"status" json:"status"`
+	CreatedAt     pgtype.Timestamp `db:"created_at" json:"created_at"`
+	FromCurrency  string           `db:"from_currency" json:"from_currency"`
+	ToCurrency    string           `db:"to_currency" json:"to_currency"`
+	FromUserEmail string           `db:"from_user_email" json:"from_user_email"`
+	ToUserEmail   string           `db:"to_user_email" json:"to_user_email"`
+	FromUserID    int32            `db:"from_user_id" json:"from_user_id"`
+	ToUserID      int32            `db:"to_user_id" json:"to_user_id"`
+}
+
+func (q *Queries) SearchTransfersAdvanced(ctx context.Context, arg SearchTransfersAdvancedParams) ([]SearchTransfersAdvancedRow, error) {
+	rows, err := q.db.Query(ctx, searchTransfersAdvanced,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
+		arg.Column7,
+		arg.Column8,
+		arg.Column9,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchTransfersAdvancedRow{}
+	for rows.Next() {
+		var i SearchTransfersAdvancedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FromAccountID,
+			&i.ToAccountID,
+			&i.Amount,
+			&i.Description,
+			&i.Status,
+			&i.CreatedAt,
+			&i.FromCurrency,
+			&i.ToCurrency,
+			&i.FromUserEmail,
+			&i.ToUserEmail,
+			&i.FromUserID,
+			&i.ToUserID,
 		); err != nil {
 			return nil, err
 		}

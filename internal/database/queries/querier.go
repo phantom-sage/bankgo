@@ -6,33 +6,62 @@ package queries
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	AcknowledgeAlert(ctx context.Context, arg AcknowledgeAlertParams) (Alert, error)
 	AddToBalance(ctx context.Context, arg AddToBalanceParams) (Account, error)
+	AdminCountUsers(ctx context.Context, arg AdminCountUsersParams) (int64, error)
+	AdminCreateUser(ctx context.Context, arg AdminCreateUserParams) (User, error)
+	AdminDeleteUser(ctx context.Context, id int32) error
+	AdminDisableUser(ctx context.Context, id int32) error
+	AdminEnableUser(ctx context.Context, id int32) error
+	AdminGetUserDetail(ctx context.Context, id int32) (AdminGetUserDetailRow, error)
+	// Admin-specific user management queries
+	AdminListUsers(ctx context.Context, arg AdminListUsersParams) ([]AdminListUsersRow, error)
+	AdminUpdateUser(ctx context.Context, arg AdminUpdateUserParams) (User, error)
+	CountAccounts(ctx context.Context, arg CountAccountsParams) (int64, error)
+	CountAlerts(ctx context.Context, arg CountAlertsParams) (int64, error)
+	CountTransfersAdvanced(ctx context.Context, arg CountTransfersAdvancedParams) (int64, error)
 	CountTransfersByAccount(ctx context.Context, fromAccountID int32) (int64, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
+	CreateAlert(ctx context.Context, arg CreateAlertParams) (Alert, error)
 	CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfer, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAccount(ctx context.Context, id int32) error
+	DeleteOldResolvedAlerts(ctx context.Context, resolvedAt pgtype.Timestamptz) error
 	DeleteUser(ctx context.Context, id int32) error
+	FreezeAccount(ctx context.Context, id int32) (Account, error)
 	GetAccount(ctx context.Context, id int32) (Account, error)
 	GetAccountByUserAndCurrency(ctx context.Context, arg GetAccountByUserAndCurrencyParams) (Account, error)
 	GetAccountForUpdate(ctx context.Context, id int32) (Account, error)
+	GetAccountWithUser(ctx context.Context, id int32) (GetAccountWithUserRow, error)
 	GetAccountsWithBalance(ctx context.Context) ([]Account, error)
+	GetAlert(ctx context.Context, id pgtype.UUID) (Alert, error)
+	GetAlertStatistics(ctx context.Context, arg GetAlertStatisticsParams) (GetAlertStatisticsRow, error)
+	GetAlertsBySource(ctx context.Context, arg GetAlertsBySourceParams) ([]Alert, error)
 	GetTransfer(ctx context.Context, id int32) (GetTransferRow, error)
 	GetTransfersByAccount(ctx context.Context, arg GetTransfersByAccountParams) ([]GetTransfersByAccountRow, error)
 	GetTransfersByDateRange(ctx context.Context, arg GetTransfersByDateRangeParams) ([]GetTransfersByDateRangeRow, error)
 	GetTransfersByStatus(ctx context.Context, arg GetTransfersByStatusParams) ([]GetTransfersByStatusRow, error)
 	GetTransfersByUser(ctx context.Context, arg GetTransfersByUserParams) ([]GetTransfersByUserRow, error)
+	GetUnresolvedAlertsCount(ctx context.Context) (int64, error)
 	GetUser(ctx context.Context, id int32) (User, error)
 	GetUserAccounts(ctx context.Context, userID int32) ([]Account, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
+	ListAlerts(ctx context.Context, arg ListAlertsParams) ([]Alert, error)
 	ListTransfers(ctx context.Context, arg ListTransfersParams) ([]ListTransfersRow, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	MarkWelcomeEmailSent(ctx context.Context, id int32) error
+	ResolveAlert(ctx context.Context, arg ResolveAlertParams) (Alert, error)
+	SearchAccounts(ctx context.Context, arg SearchAccountsParams) ([]SearchAccountsRow, error)
+	SearchAlerts(ctx context.Context, arg SearchAlertsParams) ([]Alert, error)
+	SearchTransfersAdvanced(ctx context.Context, arg SearchTransfersAdvancedParams) ([]SearchTransfersAdvancedRow, error)
 	SubtractFromBalance(ctx context.Context, arg SubtractFromBalanceParams) (Account, error)
+	UnfreezeAccount(ctx context.Context, id int32) (Account, error)
 	UpdateAccount(ctx context.Context, id int32) (Account, error)
 	UpdateAccountBalance(ctx context.Context, arg UpdateAccountBalanceParams) (Account, error)
 	UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) (Transfer, error)
